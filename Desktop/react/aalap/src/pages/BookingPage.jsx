@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { activityPricing, experiences, includedAmenities, roomPricing, roomTypes } from '../data/bookingOptions.js';
+import { saveBooking } from '../services/bookingService.js';
 
 const guestLimits = { adults: { min: 1, max: 10 }, children: { min: 0, max: 10 } };
 const inputClass = 'mt-2 w-full rounded-md border border-[#e2ddd1] bg-white px-3.5 py-3 text-sm text-[#292821] outline-none transition focus:border-[#a88b53] focus:ring-2 focus:ring-[#a88b53]/15';
@@ -185,14 +187,54 @@ function BookingSummary({ form, amenities, selectedExperiences }) {
 }
 
 function BookingReview({ form, amenities, selectedExperiences, onClose }) {
+  const [confirmedBooking, setConfirmedBooking] = useState(null);
+  const navigate = useNavigate();
+
+  const handleConfirm = () => {
+    const booking = saveBooking({ form, amenities, selectedExperiences });
+    setConfirmedBooking(booking);
+  };
+
   const amenityNames = includedAmenities.filter(({ id }) => amenities[id]).map(({ label }) => label);
   const activityNames = experiences.filter(({ id }) => selectedExperiences.includes(id)).map(({ name }) => name);
 
+  if (confirmedBooking) {
+    return (
+      <section id="booking-review" aria-labelledby="confirmation-title" className="mt-8 rounded-xl border border-[#a8c79c] bg-[#f5faf3] p-5 sm:p-7">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#2d5027]">Reservation created</p>
+        <h2 id="confirmation-title" className="mt-2 font-serif text-2xl text-[#1f3b1a]">Reservation Confirmed!</h2>
+        <p className="mt-3 text-sm leading-6 text-[#293d25]">
+          Your stay has been recorded with Reference Number:{' '}
+          <strong className="font-mono text-base text-[#1f3b1a]">{confirmedBooking.id}</strong>.
+        </p>
+        <p className="mt-1 text-xs text-[#526a4c]">
+          You can retrieve, view, print, or cancel your booking at any time from our guest portal using this reservation number and your contact details.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(`/check-booking?id=${encodeURIComponent(confirmedBooking.id)}`)}
+            className="rounded-md bg-[#292821] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-[#a88b53]"
+          >
+            View Your Booking Details & Voucher →
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-[#c5dbbe] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#293d25] transition-colors hover:bg-[#eaf4e7]"
+          >
+            Close
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section id="booking-review" aria-labelledby="review-title" className="mt-8 rounded-xl border border-[#d9c99e] bg-[#fbf8f0] p-5 sm:p-7">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8b7242]">Review only</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8b7242]">Review your stay</p>
       <h2 id="review-title" className="mt-2 font-serif text-2xl text-[#292821]">Review Your Booking Request</h2>
-      <p className="mt-3 text-sm leading-6 text-[#62583f]">Please check your details. This site has no booking service connected, so your information has not been sent or saved and your reservation is not confirmed.</p>
+      <p className="mt-3 text-sm leading-6 text-[#62583f]">Please check your details below. You can confirm your reservation now to receive your booking reference.</p>
       <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
         <div><dt className="text-[#77746c]">Guest</dt><dd className="mt-1 font-medium text-[#292821]">{form.fullName} · {form.email} · {form.phone}</dd></div>
         <div><dt className="text-[#77746c]">Stay</dt><dd className="mt-1 font-medium text-[#292821]">{formatDate(form.checkIn)} – {formatDate(form.checkOut)}</dd></div>
@@ -201,7 +243,22 @@ function BookingReview({ form, amenities, selectedExperiences, onClose }) {
         <div><dt className="text-[#77746c]">Included amenity preferences</dt><dd className="mt-1 font-medium text-[#292821]">{amenityNames.length ? amenityNames.join(', ') : 'No preferences selected. All included amenities remain available.'}</dd></div>
         <div><dt className="text-[#77746c]">Selected experiences</dt><dd className="mt-1 font-medium text-[#292821]">{activityNames.length ? activityNames.join(', ') : 'None selected'}</dd></div>
       </dl>
-      <button type="button" onClick={onClose} className="mt-6 rounded-md bg-[#292821] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-[#a88b53] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a88b53]">Close review</button>
+      <div className="mt-6 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={handleConfirm}
+          className="rounded-md bg-[#292821] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-[#a88b53] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a88b53]"
+        >
+          Confirm Reservation
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md border border-[#d9c99e] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#62583f] transition-colors hover:bg-[#f3eedf]"
+        >
+          Close Review
+        </button>
+      </div>
     </section>
   );
 }

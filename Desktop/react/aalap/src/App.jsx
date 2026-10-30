@@ -10,6 +10,9 @@ import ServicesSection from './components/sections/ServicesSection.jsx';
 import SiteFooter from './components/sections/SiteFooter.jsx';
 import TestimonialsSection from './components/sections/TestimonialsSection.jsx';
 import BookingPage from './pages/BookingPage.jsx';
+import CheckBookingPage from './pages/CheckBookingPage.jsx';
+import CancelBookingPage from './pages/CancelBookingPage.jsx';
+import VerifyBookingPage from './pages/VerifyBookingPage.jsx';
 
 const heroSlides = Object.entries(
   import.meta.glob('./assets/carousel/*', {
@@ -44,6 +47,9 @@ function App() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/booking" element={<BookingPage />} />
+      <Route path="/check-booking" element={<CheckBookingPage />} />
+      <Route path="/cancel-booking" element={<CancelBookingPage />} />
+      <Route path="/verify-booking" element={<VerifyBookingPage />} />
       <Route path="*" element={<HomePage />} />
     </Routes>
   );

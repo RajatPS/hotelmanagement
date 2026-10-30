@@ -8,6 +8,7 @@ type CarouselProps = {
   description?: string;
   primaryAction?: { label: string; href: string };
   secondaryAction?: { label: string; href: string };
+  tertiaryAction?: { label: string; href: string };
 };
 
 export default function HeroCarousel({
@@ -17,6 +18,7 @@ export default function HeroCarousel({
   description = 'Relax in thoughtfully designed rooms, enjoy exceptional hospitality, and make every stay memorable.',
   primaryAction = { label: 'Book Your Stay', href: '/booking' },
   secondaryAction = { label: 'Explore Our Rooms', href: '#rooms' },
+  tertiaryAction = { label: 'Check Your Booking', href: '/check-booking' },
 }: CarouselProps) {
   const extendedSlides = [slides[slides.length - 1], ...slides, slides[0]];
   const [trackIndex, setTrackIndex] = useState(1);
@@ -137,6 +139,9 @@ export default function HeroCarousel({
         <div className={carouselStyles.actions}>
           <a href={primaryAction.href} className={carouselStyles.primaryAction}>{primaryAction.label}</a>
           <a href={secondaryAction.href} className={carouselStyles.secondaryAction}>{secondaryAction.label}</a>
+          {tertiaryAction && (
+            <a href={tertiaryAction.href} className={carouselStyles.tertiaryAction}>{tertiaryAction.label}</a>
+          )}
         </div>
       </div>
 
@@ -158,9 +163,10 @@ const carouselStyles = {
   eyebrow: 'mb-5 text-[10px] font-semibold uppercase tracking-[0.34em] text-[#e3c990] sm:text-xs',
   heading: 'max-w-[900px] font-serif text-[clamp(2.75rem,7vw,6.4rem)] font-normal leading-[1.02] tracking-[-0.045em] text-white [text-shadow:0_2px_24px_rgba(0,0,0,0.24)]',
   description: 'mt-6 max-w-[600px] text-sm leading-7 text-white/85 sm:text-base',
-  actions: 'mt-9 flex flex-col items-center gap-3 sm:flex-row',
-  primaryAction: 'min-w-[180px] bg-[#d5b97f] px-7 py-4 text-[11px] font-semibold uppercase tracking-[0.15em] text-[#201e19] transition-colors hover:bg-[#ead6a9]',
-  secondaryAction: 'min-w-[180px] border border-white/75 px-7 py-[15px] text-[11px] font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-white/15',
+  actions: 'mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap',
+  primaryAction: 'min-w-[180px] bg-[#d5b97f] px-7 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.15em] text-[#201e19] transition-colors hover:bg-[#ead6a9]',
+  secondaryAction: 'min-w-[180px] border border-white/75 px-7 py-[15px] text-center text-[11px] font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-white/15',
+  tertiaryAction: 'min-w-[180px] border border-white/75 px-7 py-[15px] text-center text-[11px] font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-white/15',
   leftArrow: 'absolute left-3 top-1/2 z-10 -translate-y-1/2 cursor-pointer rounded-full border border-white/30 bg-black/20 px-3 py-2 text-xl text-white transition hover:bg-black/50 disabled:cursor-not-allowed disabled:opacity-40 sm:left-7 sm:px-4 sm:py-3 sm:text-2xl',
   rightArrow: 'absolute right-3 top-1/2 z-10 -translate-y-1/2 cursor-pointer rounded-full border border-white/30 bg-black/20 px-3 py-2 text-xl text-white transition hover:bg-black/50 disabled:cursor-not-allowed disabled:opacity-40 sm:right-7 sm:px-4 sm:py-3 sm:text-2xl',
   counter: 'absolute bottom-5 left-1/2 z-[2] -translate-x-1/2 rounded-full border border-white/20 bg-black/25 px-3 py-1 text-xs tracking-[0.1em] text-white/90',

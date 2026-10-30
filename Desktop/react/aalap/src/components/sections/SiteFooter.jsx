@@ -1,11 +1,12 @@
 const quickLinks = [
-  ['Home', '#home'],
-  ['About', '#about'],
-  ['Rooms', '#rooms'],
-  ['Services', '#services'],
-  ['Gallery', '#gallery'],
+  ['Home', '/#home'],
+  ['About', '/#about'],
+  ['Rooms', '/#rooms'],
+  ['Services', '/#services'],
+  ['Gallery', '/#gallery'],
   ['Book Now', '/booking'],
-  ['Contact', '#contact'],
+  ['Check Booking', '/check-booking'],
+  ['Contact', '/#contact'],
 ];
 
 export default function SiteFooter() {
