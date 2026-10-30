@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { experiences, includedAmenities, roomTypes } from '../data/bookingOptions.js';
+import { useMemo, useState } from 'react';
+import { activityPricing, experiences, includedAmenities, roomPricing, roomTypes } from '../data/bookingOptions.js';
 
 const guestLimits = { adults: { min: 1, max: 10 }, children: { min: 0, max: 10 } };
 const inputClass = 'mt-2 w-full rounded-md border border-[#e2ddd1] bg-white px-3.5 py-3 text-sm text-[#292821] outline-none transition focus:border-[#a88b53] focus:ring-2 focus:ring-[#a88b53]/15';
@@ -17,6 +17,16 @@ function dateAfter(dateValue) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+function formatCurrency(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return '₹0';
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(numericValue);
+}
+
 function formatDate(value) {
   if (!value) return 'Not selected';
   return new Intl.DateTimeFormat('en', {
@@ -25,6 +35,31 @@ function formatDate(value) {
     day: 'numeric',
     year: 'numeric',
   }).format(new Date(`${value}T00:00:00`));
+}
+
+function calculateStayNights(checkIn, checkOut) {
+  if (!checkIn || !checkOut) return 0;
+
+  const start = new Date(`${checkIn}T00:00:00`);
+  const end = new Date(`${checkOut}T00:00:00`);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    return 0;
+  }
+
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / millisecondsPerDay));
+}
+
+function getRequiredRoomCount(roomType, adults) {
+  const roomConfig = roomPricing[roomType];
+  const safeAdults = Number(adults) || 0;
+
+  if (!roomConfig || !Number.isFinite(safeAdults) || safeAdults <= 0) {
+    return 1;
+  }
+
+  return Math.ceil(safeAdults / roomConfig.maxAdultsPerRoom);
 }
 
 const discoveredActivityImages = Object.entries(
@@ -40,16 +75,54 @@ function getActivityImage(activityId) {
 }
 
 function BookingSummary({ form, amenities, selectedExperiences }) {
-  const selectedAmenityLabels = includedAmenities
-    .filter(({ id }) => amenities[id])
-    .map(({ label }) => label);
-  const chosenExperiences = experiences.filter(({ id }) => selectedExperiences.includes(id));
-  const knownActivityTotal = chosenExperiences.reduce((total, { priceInr }) => total + (priceInr ?? 0), 0);
-  const hasUnpricedExperiences = chosenExperiences.some(({ priceInr }) => priceInr === null);
-  const guestCount = Number(form.adults || 0) + Number(form.children || 0);
-  const estimateMessage = hasUnpricedExperiences
-    ? 'Room rates and some selected experience prices have not been provided, so a reliable estimate cannot be calculated.'
-    : 'Room rates have not been provided, so a reliable estimate cannot be calculated.';
+  const guestCount = useMemo(() => {
+    const adults = Number(form.adults || 0);
+    const children = Number(form.children || 0);
+    return Number.isFinite(adults + children) ? adults + children : 0;
+  }, [form.adults, form.children]);
+
+  const stayNights = useMemo(
+    () => calculateStayNights(form.checkIn, form.checkOut),
+    [form.checkIn, form.checkOut],
+  );
+
+  const chosenExperiences = useMemo(
+    () => experiences.filter(({ id }) => selectedExperiences.includes(id)),
+    [selectedExperiences],
+  );
+
+  const selectedAmenityLabels = useMemo(
+    () => includedAmenities.filter(({ id }) => amenities[id]).map(({ label }) => label),
+    [amenities],
+  );
+
+  const activityRows = useMemo(() => {
+    return chosenExperiences.map((activity) => {
+      const pricing = activityPricing[activity.id];
+      const unitPrice = Number(pricing?.unitPrice ?? 0);
+      const participantCount = guestCount;
+      const charge = participantCount * unitPrice;
+
+      return {
+        ...activity,
+        unitPrice,
+        participantCount,
+        charge,
+      };
+    });
+  }, [chosenExperiences, guestCount]);
+
+  const selectedRoom = roomPricing[form.roomType] ?? null;
+  const roomPriceLabel = selectedRoom ? `${formatCurrency(selectedRoom.pricePerNight)} per room per night` : 'Price to be confirmed';
+  const roomCount = Number(form.rooms || 0);
+  const hasValidDates = Boolean(form.checkIn && form.checkOut && stayNights > 0);
+  const roomCharge = hasValidDates && selectedRoom && roomCount > 0
+    ? selectedRoom.pricePerNight * roomCount * stayNights
+    : 0;
+  const minimumRequiredRooms = getRequiredRoomCount(form.roomType, form.adults);
+
+  const totalActivityCharges = activityRows.reduce((total, activity) => total + (Number(activity.charge) || 0), 0);
+  const finalTotal = hasValidDates ? roomCharge + totalActivityCharges : null;
 
   return (
     <aside className="h-fit rounded-xl border border-[#e9e4d7] bg-white p-5 shadow-[0_12px_36px_rgba(39,35,26,0.07)] sm:p-7 lg:sticky lg:top-24">
@@ -58,10 +131,13 @@ function BookingSummary({ form, amenities, selectedExperiences }) {
       <dl className="mt-6 space-y-4 text-sm">
         <div className="flex justify-between gap-4"><dt className="text-[#77746c]">Check-in</dt><dd className="text-right font-medium text-[#292821]">{formatDate(form.checkIn)}</dd></div>
         <div className="flex justify-between gap-4"><dt className="text-[#77746c]">Check-out</dt><dd className="text-right font-medium text-[#292821]">{formatDate(form.checkOut)}</dd></div>
+        <div className="flex justify-between gap-4"><dt className="text-[#77746c]">Nights</dt><dd className="text-right font-medium text-[#292821]">{hasValidDates ? stayNights : 'Not available'}</dd></div>
         <div className="flex justify-between gap-4"><dt className="text-[#77746c]">Guests</dt><dd className="text-right font-medium text-[#292821]">{form.adults || 0} adults, {form.children || 0} children ({guestCount} total)</dd></div>
         <div className="flex justify-between gap-4"><dt className="text-[#77746c]">Rooms</dt><dd className="text-right font-medium text-[#292821]">{form.rooms || 0}</dd></div>
         <div className="flex justify-between gap-4"><dt className="text-[#77746c]">Room type</dt><dd className="text-right font-medium text-[#292821]">{form.roomType || 'Not selected'}</dd></div>
-        <div className="flex justify-between gap-4"><dt className="text-[#77746c]">Room rate</dt><dd className="text-right font-medium text-[#8b7242]">Price to be confirmed</dd></div>
+        <div className="flex justify-between gap-4"><dt className="text-[#77746c]">Room rate</dt><dd className="text-right font-medium text-[#8b7242]">{roomPriceLabel}</dd></div>
+        <div className="flex justify-between gap-4"><dt className="text-[#77746c]">Minimum rooms required</dt><dd className="text-right font-medium text-[#292821]">{minimumRequiredRooms}</dd></div>
+        <div className="flex justify-between gap-4"><dt className="text-[#77746c]">Room charge</dt><dd className="text-right font-medium text-[#8b7242]">{hasValidDates && selectedRoom && roomCount > 0 ? formatCurrency(roomCharge) : 'Not available'}</dd></div>
       </dl>
 
       <div className="my-6 border-t border-[#eeeae1]" />
@@ -74,27 +150,36 @@ function BookingSummary({ form, amenities, selectedExperiences }) {
       ) : <p className="mt-3 text-sm text-[#77746c]">No preferences selected; all included amenities remain available.</p>}
 
       <div className="my-6 border-t border-[#eeeae1]" />
-      <h3 className="text-sm font-semibold text-[#292821]">Selected experiences</h3>
-      {chosenExperiences.length ? (
+      <h3 className="text-sm font-semibold text-[#292821]">Selected paid activities</h3>
+      {activityRows.length ? (
         <ul className="mt-3 space-y-3">
-          {chosenExperiences.map((activity) => (
-            <li key={activity.id} className="flex justify-between gap-3 text-sm">
-              <span className="text-[#62583f]">{activity.name}</span>
-              <span className="shrink-0 text-right text-xs font-medium text-[#8b7242]">{activity.priceInr === null ? 'Price to be confirmed' : `₹${activity.priceInr.toLocaleString('en-IN')}`}</span>
+          {activityRows.map((activity) => (
+            <li key={activity.id} className="space-y-1 text-sm">
+              <div className="flex justify-between gap-3 text-[#62583f]">
+                <span>{activity.name}</span>
+                <span className="shrink-0 text-right font-medium text-[#8b7242]">{formatCurrency(activity.charge)}</span>
+              </div>
+              <div className="text-right text-[11px] text-[#77746c]">
+                {`${formatCurrency(activity.unitPrice)} / guest · ${activity.participantCount} guests`}
+              </div>
             </li>
           ))}
         </ul>
       ) : <p className="mt-3 text-sm text-[#77746c]">Choose any experiences to see them here.</p>}
-      {chosenExperiences.some(({ priceInr }) => priceInr !== null) && (
-        <p className="mt-3 text-right text-xs font-medium text-[#62583f]">Known experience charges: ₹{knownActivityTotal.toLocaleString('en-IN')}</p>
+      {activityRows.length > 0 && (
+        <p className="mt-3 text-right text-xs font-medium text-[#62583f]">Total activity charges: {formatCurrency(totalActivityCharges)}</p>
       )}
 
       <div className="my-6 border-t border-[#eeeae1]" />
       <div className="flex items-start justify-between gap-4">
         <span className="text-sm font-semibold text-[#292821]">Estimated total</span>
-        <span className="text-right text-sm font-semibold text-[#8b7242]">Not available yet</span>
+        <span className="text-right text-sm font-semibold text-[#8b7242]">{finalTotal === null ? 'Not available yet' : formatCurrency(finalTotal)}</span>
       </div>
-      <p className="mt-2 text-xs leading-5 text-[#77746c]">{estimateMessage} Complimentary amenities add no extra charge.</p>
+      <p className="mt-2 text-xs leading-5 text-[#77746c]">
+        {finalTotal === null
+          ? 'Choose a valid check-in and check-out date to calculate the onsen and total estimate. Complimentary amenities add no extra charge.'
+          : `Room charges and taxes are not yet configured for this booking. Complimentary amenities add no extra charge.`}
+      </p>
     </aside>
   );
 }
@@ -144,7 +229,23 @@ export default function BookingPage() {
 
   const updateField = (event) => {
     const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
+    setForm((current) => {
+      const nextForm = { ...current, [name]: value };
+
+      if (name === 'adults' || name === 'roomType') {
+        const nextAdults = Number(name === 'adults' ? value : nextForm.adults || 0);
+        const roomConfig = roomPricing[nextForm.roomType];
+
+        if (roomConfig && nextAdults > 0) {
+          const requiredRooms = getRequiredRoomCount(nextForm.roomType, nextAdults);
+          if (Number(nextForm.rooms || 0) < requiredRooms) {
+            nextForm.rooms = String(requiredRooms);
+          }
+        }
+      }
+
+      return nextForm;
+    });
     setErrors((current) => ({ ...current, [name]: '' }));
     setShowReview(false);
   };
@@ -165,6 +266,11 @@ export default function BookingPage() {
     event.preventDefault();
     const nextErrors = {};
     const currentDate = today();
+    const roomCount = Number(form.rooms);
+    const adultCount = Number(form.adults);
+    const childCount = Number(form.children);
+    const selectedRoom = roomPricing[form.roomType] ?? null;
+
     if (!form.checkIn) nextErrors.checkIn = 'Choose a check-in date.';
     else if (form.checkIn < currentDate) nextErrors.checkIn = 'Check-in cannot be in the past.';
     if (!form.checkOut) nextErrors.checkOut = 'Choose a check-out date.';
@@ -177,9 +283,16 @@ export default function BookingPage() {
           : 'Enter a whole number from 0 to 10.';
       }
     }
-    const roomCount = Number(form.rooms);
     if (!Number.isInteger(roomCount) || roomCount < 1) nextErrors.rooms = 'Choose at least one room.';
     if (!roomTypes.includes(form.roomType)) nextErrors.roomType = 'Choose a room type.';
+    if (selectedRoom) {
+      const requiredRooms = getRequiredRoomCount(form.roomType, adultCount);
+      if (roomCount < requiredRooms) {
+        nextErrors.rooms = `At least ${requiredRooms} room${requiredRooms > 1 ? 's' : ''} are required for ${adultCount} adults in a ${form.roomType}.`;
+      }
+      const maxChildren = selectedRoom.maxChildrenPerRoom * roomCount;
+      if (childCount > maxChildren) nextErrors.children = `This room selection allows up to ${maxChildren} children.`;
+    }
     if (form.fullName.trim().length < 2) nextErrors.fullName = 'Enter your full name.';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) nextErrors.email = 'Enter a valid email address.';
     if (!/^[+()\d\s.-]{7,20}$/.test(form.phone.trim())) nextErrors.phone = 'Enter a valid phone number.';
@@ -251,6 +364,10 @@ export default function BookingPage() {
                   <select id="roomType" name="roomType" value={form.roomType} onChange={updateField} aria-invalid={Boolean(errors.roomType)} aria-describedby={describedBy('roomType')} required className={inputClass}>
                     {roomTypes.map((roomType) => <option key={roomType} value={roomType}>{roomType}</option>)}
                   </select>
+                  <div className="mt-2 rounded-md border border-[#e9e4d7] bg-[#faf8f3] px-3 py-2 text-sm">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8b7242]">Selected room price</p>
+                    <p className="mt-1 font-medium text-[#292821]">{roomPricing[form.roomType] ? `${formatCurrency(roomPricing[form.roomType].pricePerNight)} per room per night` : 'Price to be confirmed'}</p>
+                  </div>
                   {fieldError('roomType')}
                 </div>
                 <div>
@@ -299,9 +416,8 @@ export default function BookingPage() {
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
                 {experiences.map((activity) => {
                   const image = getActivityImage(activity.id);
-                  const chargeText = activity.pricing === 'paid-price-to-confirm'
-                    ? 'Additional charge · Price to be confirmed'
-                    : 'Price and inclusion status to be confirmed';
+                  const activityRate = activityPricing[activity.id]?.unitPrice ?? 0;
+                  const chargeText = `${formatCurrency(activityRate)} per guest`;
                   return (
                     <label key={activity.id} className="group cursor-pointer overflow-hidden rounded-lg border border-[#eeeae1] transition-shadow hover:shadow-[0_12px_30px_rgba(39,35,26,0.08)]">
                       {image && <img src={image} alt="" loading="lazy" className="h-40 w-full object-cover" />}
